@@ -1,4 +1,4 @@
-name: Build OnePlus_ACE2_KernelSU_NOSUSFS
+name: Build OnePlus_ACE2_KernelSU_SUSFS
 on:
   workflow_dispatch:
     inputs:
@@ -26,13 +26,13 @@ on:
         default: true
       SUSFS:  # 新增 SUSFS 选项
         type: boolean
-        description: "是否添加 SUSFS 文件系统支持？"
+        description: "是否添加 SUSFS 支持？"
         required: true
         default: false
 
 jobs:
   build:
-    name: ${{ github.event.inputs.FAST_BUILD == 'true' && ' [FAST]' || '' }}${{ github.event.inputs.SCHED == 'true' && ' [SCHED]' || '' }}${{ github.event.inputs.LSM == 'true' && ' [LSM]' || '' }}${{ github.event.inputs.SUSFS == 'true' && ' [SUSFS]' || '' }}For ${{ github.event.inputs.FILE }} ${{ github.event.inputs.SUFFIX }}
+    name: ${{ github.event.inputs.LSM == 'true' && ' [LSM]' || '' }}${{ github.event.inputs.SUSFS == 'true' && ' [SUSFS]' || '' }}For ${{ github.event.inputs.FILE }} ${{ github.event.inputs.SUFFIX }}
     runs-on: ubuntu-latest
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
