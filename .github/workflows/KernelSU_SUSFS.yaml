@@ -305,62 +305,24 @@ jobs:
         if: ${{ github.event.inputs.SUSFS == 'true' }}
         run: |
           cd kernel_workspace
-          echo "正在添加 SUSFS 文件系统支持（补丁方式）..."
+          echo "正在添加 SUSFS 文件系统支持..."
           
-          # 克隆 SUSFS 仓库（使用稳定版本）
+          # 克隆 SUSFS 仓库
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 susfs_temp
           
-          # 获取内核版本信息用于选择正确的补丁
-          KERNEL_VERSION="${{ env.KERNEL_VERSION }}"
-          echo "检测到内核版本: $KERNEL_VERSION"
+          # 复制所有补丁文件
+          cp -r susfs_temp/kernel_patches/fs/* kernel_platform/common/fs/ 2>/dev/null || true
+          cp -r susfs_temp/kernel_patches/include/linux/* kernel_platform/common/include/linux/ 2>/dev/null || true
+          cp susfs_temp/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch kernel_platform/KernelSU/ 2>/dev/null || true
+          cp susfs_temp/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch kernel_platform/common/ 2>/dev/null || true
           
-          # 复制补丁文件
-          echo "复制 SUSFS 补丁文件..."
-          cp -r susfs_temp/kernel_patches/fs/* kernel_platform/common/fs/ 2>/dev/null || echo "部分 fs 补丁复制失败"
-          cp -r susfs_temp/kernel_patches/include/linux/* kernel_platform/common/include/linux/ 2>/dev/null || echo "部分 include 补丁复制失败"
+          # 应用补丁
+          cd kernel_platform/KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch || true
+          cd ../common && patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch || true
+          cd ../..
           
-          # 复制 KernelSU 补丁
-          cp susfs_temp/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch kernel_platform/KernelSU/ 2>/dev/null || echo "KernelSU 补丁复制失败"
-          
-          # 尝试选择合适的内核补丁
-          KERNEL_PATCH=""
-          if [[ -f "susfs_temp/kernel_patches/50_add_susfs_in_kernel-$KERNEL_VERSION.patch" ]]; then
-            KERNEL_PATCH="50_add_susfs_in_kernel-$KERNEL_VERSION.patch"
-          elif [[ -f "susfs_temp/kernel_patches/50_add_susfs_in_kernel.patch" ]]; then
-            KERNEL_PATCH="50_add_susfs_in_kernel.patch"
-          else
-            # 查找其他可用的内核补丁
-            KERNEL_PATCH=$(ls susfs_temp/kernel_patches/50_add_susfs_in_kernel*.patch 2>/dev/null | head -n1)
-          fi
-          
-          if [[ -n "$KERNEL_PATCH" ]]; then
-            cp "susfs_temp/kernel_patches/$KERNEL_PATCH" kernel_platform/common/
-            echo "使用内核补丁: $KERNEL_PATCH"
-          else
-            echo "警告：未找到合适的内核补丁文件"
-          fi
-          
-          # 应用 KernelSU 补丁
-          if [[ -f "kernel_platform/KernelSU/10_enable_susfs_for_ksu.patch" ]]; then
-            echo "应用 KernelSU SUSFS 补丁..."
-            cd kernel_platform/KernelSU
-            patch -p1 < 10_enable_susfs_for_ksu.patch || echo "KernelSU 补丁应用可能失败，请检查"
-            cd ../..
-          fi
-          
-          # 应用内核补丁
-          if [[ -n "$KERNEL_PATCH" && -f "kernel_platform/common/$KERNEL_PATCH" ]]; then
-            echo "应用内核 SUSFS 补丁..."
-            cd kernel_platform/common
-            patch -p1 < "$KERNEL_PATCH" || echo "内核补丁应用可能失败，请手动检查"
-            cd ../..
-          fi
-          
-          # 清理临时文件
           rm -rf susfs_temp
-          
           echo "✅ SUSFS 补丁应用完成"
-
       # 自定义内核后缀
       - name: Custom Kernel Suffix if set
         if: ${{ github.event.inputs.SUFFIX != '' }}
