@@ -1,4 +1,4 @@
-name: Build OnePlus_ACE2_KSUN_SUSFS
+name: Build OPACE2_KSUN_SUSFS
 on:
   workflow_dispatch:
     inputs:
