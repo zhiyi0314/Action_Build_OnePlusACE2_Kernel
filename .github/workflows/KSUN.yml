@@ -230,75 +230,36 @@ jobs:
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
           sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" kernel/Makefile
           
-      - name: Apply Patches KernelSU Next
+      - name: Apply SUSFS Patches (正确方式)
         if: ${{ github.event.inputs.SUSFS == 'true' }}
         run: |
           cd kernel_workspace
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10
-          git clone https://github.com/WildPlusKernel/kernel_patches.git
-          cd kernel_platform
-          
-          # 设置 SusFS 版本
-          susfs_version="${{ github.event.inputs.SUSFS_VERSION }}"
-          echo "SusFS Version: $susfs_version"
-          
-          # 复制基础文件
-          cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch ./common/
-          cp ../kernel_patches/next/scope_min_manual_hooks_v1.5.patch ./common/
-          cp ../susfs4ksu/kernel_patches/fs/* ./common/fs/
-          cp ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
+          # 拉 SUSFS 补丁仓库 (官方为 GKI Android12 5.10 分支, 与 ACE2 完全匹配)
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android12-5.10 --depth=1
 
-          cd ./common
+          cd kernel_platform/common
 
-          # 根据 SusFS 版本应用不同的补丁
-          case "$susfs_version" in
-            "v1.5.5"|"v1.5.6"|"v1.5.7")
-              echo "Applying patch for SusFS $susfs_version"
-              cp "../../../kernel_patches/next/0001-kernel-implement-susfs-v1.5.5-v1.5.7-KSUN-v1.0.8.patch" "./ksun_susfs_latest.patch"
-              patch -p1 --forward < ksun_susfs_latest.patch || true
-              ;;
-            "v1.5.8")
-              echo "Applying patches for SusFS $susfs_version"
-              cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
-              patch -p1 --forward --fuzz=3 < 10_enable_susfs_for_ksu.patch  || true
-              cp "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_apk_sign.c.patch" ./
-              patch -p1 --forward --fuzz=3 < fix_apk_sign.c.patch || true
-              cp "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_core_hook.c.patch" ./
-              patch -p1 --forward --fuzz=3 < fix_core_hook.c.patch || true
-              cp "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_selinux.c.patch" ./
-              patch -p1 --forward --fuzz=3 < fix_selinux.c.patch || true
-              cp "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_ksud.c.patch" ./
-              patch -p1 --forward --fuzz=3 < fix_ksud.c.patch || true
-              ;;
-            "v1.5.9"|"v1.5.10"|"v1.5.11"|"v1.5.12")
-              echo "Applying patches for SusFS $susfs_version"
-              cp ../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
-              patch -p1 --forward < 10_enable_susfs_for_ksu.patch  || true
-              for file in $(find ./kernel -maxdepth 2 -name "*.rej" -printf "%f\n" | cut -d'.' -f1); do
-                echo "Patching file: $file.c with fix_$file.c.patch"
-                if [ -f "../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_$file.c.patch" ]; then
-                  patch -p1 --forward < "../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_$file.c.patch" || true
-                fi
-              done
-              if [ -f "../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_kernel_compat.c.patch" ]; then
-                patch -p1 --forward < "../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_kernel_compat.c.patch" || true
-              fi
-              ;;
-            *)
-              echo "::error::Unsupported SUSFS version: $susfs_version"
-              exit 1
-              ;;
-          esac
+          echo ">>> 应用 SUSFS 主补丁..."
+          patch -p1 --forward < ../../susfs4ksu/kernel_patches/50_add_susfs_in_gki-android12-5.10.patch || true
 
-          # 应用通用补丁
-          patch -p1 < 50_add_susfs_in_gki-android12-5.10.patch || true
-          patch -p1 --fuzz=3 < scope_min_manual_hooks_v1.5.patch || true
+          echo ">>> 覆盖 SUSFS fs 和头文件..."
+          cp -r ../../susfs4ksu/kernel_patches/fs/* ./fs/
+          cp -r ../../susfs4ksu/kernel_patches/include/linux/* ./include/linux/
 
-          # Revert     
-          if grep -qxF $'\t\tgoto show_pad;' ./fs/proc/task_mmu.c; then
-            sed -i -e 's/goto show_pad;/return 0;/' ./fs/proc/task_mmu.c
+          echo ">>> 根据选择版本补丁进行修复..."
+          SUSFS_VER="${{ github.event.inputs.SUSFS_VERSION }}"
+
+          if [ -d "../../kernel_patches/next/susfs_fix_patches/${SUSFS_VER}" ]; then
+            cp -r ../../kernel_patches/next/susfs_fix_patches/${SUSFS_VER}/*.patch ./
+            for p in *.patch; do
+              [ -f "$p" ] && patch -p1 --forward --fuzz=3 < "$p" || true
+            done
+          else
+            echo ">>> 未找到该版本对应的修复补丁（可能不需要修复）"
           fi
-          
+
+          echo "✅ SUSFS 补丁应用完成"
+
       - name: Apply LSM_BBG
         if: ${{ github.event.inputs.LSM == 'true' }}
         run: |
