@@ -390,5 +390,5 @@ jobs:
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v4
         with:
-          name: AK3_KSU_OKI5.10-SUSFS
+          name: AK3_KSU_v1.0.5_OKI5.10-SUSFS
           path: ./AnyKernel3/*
