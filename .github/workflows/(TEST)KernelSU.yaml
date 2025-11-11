@@ -1,4 +1,4 @@
-name: (TEST SUSFS)Build OPACE2_KernelSU
+name: (TEST Build)Build OPACE2_KernelSU_SUSFS
 on:
   workflow_dispatch:
     inputs:
